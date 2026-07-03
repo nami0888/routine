@@ -909,28 +909,27 @@ function toggleVoice(){
   speechOn=!speechOn;
   localStorage.setItem('planner_speech',speechOn?'true':'false');
   updVoiceBtn();
-  if(speechOn)speak('読み上げをオンにしました');
-  else{window.speechSynthesis?.cancel();toast('🔕 音声通知オフ');}
+  if(speechOn){toast('🔊 読み上げオン');speak('読み上げをオンにしました');}
+  else{window.speechSynthesis?.cancel();toast('🔕 読み上げオフ');}
 }
-// Chromeのvoices遅延読み込み対応
+// Chrome speech synthesis 対応
 if('speechSynthesis' in window){
   window.speechSynthesis.getVoices();
-  window.speechSynthesis.onvoiceschanged=()=>window.speechSynthesis.getVoices();
+  // Chromeがpause状態になるバグの対策
+  setInterval(()=>{
+    if(window.speechSynthesis&&!window.speechSynthesis.speaking)
+      window.speechSynthesis.resume();
+  },5000);
 }
 function speak(text){
   if(!speechOn||!('speechSynthesis' in window))return;
-  window.speechSynthesis.cancel();
-  const doSpeak=()=>{
+  try{
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.resume(); // Chrome対策
     const u=new SpeechSynthesisUtterance(text);
     u.lang='ja-JP';u.rate=1.0;u.pitch=1.1;
-    const voices=window.speechSynthesis.getVoices();
-    const ja=voices.find(v=>v.lang.startsWith('ja'))||voices[0];
-    if(ja)u.voice=ja;
     window.speechSynthesis.speak(u);
-  };
-  const v=window.speechSynthesis.getVoices();
-  if(v.length>0){doSpeak();}
-  else{window.speechSynthesis.onvoiceschanged=()=>{window.speechSynthesis.onvoiceschanged=null;doSpeak();};}
+  }catch(e){console.error('speech error',e);}
 }
 
 /* ===== LEFT INPUT ===== */
