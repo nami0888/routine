@@ -470,6 +470,25 @@ html,body{height:100%;background:var(--bg);font-family:'Noto Sans JP',sans-serif
 </style>
 </head>
 <body>
+<!-- パスワード画面 -->
+<div id="auth-overlay" style="position:fixed;inset:0;background:#f0f2f5;display:flex;align-items:center;justify-content:center;z-index:9999">
+  <div style="background:#fff;border-radius:20px;padding:40px 36px;width:320px;box-shadow:0 8px 40px rgba(0,0,0,0.12);text-align:center">
+    <div style="font-size:40px;margin-bottom:12px">🔒</div>
+    <div style="font-size:11px;font-weight:700;letter-spacing:2px;color:#9ca3af;margin-bottom:8px">AI DAILY PLANNER</div>
+    <div style="font-size:14px;color:#6b7280;margin-bottom:24px">パスワードを入力してください</div>
+    <input id="auth-inp" type="password" placeholder="パスワード"
+      style="width:100%;padding:12px 16px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:16px;outline:none;margin-bottom:8px;font-family:inherit;letter-spacing:2px;text-align:center"
+      onkeydown="if(event.key==='Enter')doLogin()"
+      onfocus="this.style.borderColor='#2563EB'"
+      onblur="this.style.borderColor='#e5e7eb'"/>
+    <div id="auth-err" style="display:none;font-size:12px;color:#EF4444;margin-bottom:8px">パスワードが違います</div>
+    <button onclick="doLogin()"
+      style="width:100%;padding:12px;background:#2563EB;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">
+      ログイン
+    </button>
+  </div>
+</div>
+
 <div class="app">
 
 <!-- ===== LEFT ===== -->
@@ -2313,13 +2332,51 @@ function addGroupToTimeline(gid){
   save();renderRight();closeFixedDrawer();
   toast(`「${g.name}」の${g.tasks.length}件をタイムラインに追加しました ✓`);
 }
+/* ===== パスワード認証 ===== */
+const AUTH_SALT='aiplanner_2024';
+const PWD_KEY='planner_pwd_h';
+const AUTH_EXP_KEY='planner_auth_t';
+const AUTH_EXPIRE=24*60*60*1000;
+
+async function sha256(str){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+async function initAuth(){
+  const t=parseInt(localStorage.getItem(AUTH_EXP_KEY)||'0');
+  if(Date.now()-t<AUTH_EXPIRE){hideAuth();return;}
+  if(!localStorage.getItem(PWD_KEY)){
+    const dp=String.fromCharCode(110,97,109,105,48,56,56,54);
+    localStorage.setItem(PWD_KEY,await sha256(dp+AUTH_SALT));
+  }
+  document.getElementById('auth-overlay').style.display='flex';
+  setTimeout(()=>document.getElementById('auth-inp')?.focus(),100);
+}
+async function doLogin(){
+  const pwd=document.getElementById('auth-inp')?.value||'';
+  const h=await sha256(pwd+AUTH_SALT);
+  if(h===localStorage.getItem(PWD_KEY)){
+    localStorage.setItem(AUTH_EXP_KEY,Date.now().toString());
+    hideAuth();
+  } else {
+    const e=document.getElementById('auth-err');
+    if(e){e.style.display='block';setTimeout(()=>e.style.display='none',2000);}
+    document.getElementById('auth-inp').value='';
+    document.getElementById('auth-inp').focus();
+  }
+}
+function hideAuth(){
+  const ov=document.getElementById('auth-overlay');
+  if(ov)ov.style.display='none';
+}
+
 document.getElementById('pa-dur').innerHTML=durHTML('30分');
 document.getElementById('add-dur').innerHTML=durHTML('30分');
 setNow();
 updVoiceBtn();
 initFixedTasks();
 initCarryover();
-// 同期設定があれば起動時に最新データを取得
+initAuth();
 if(syncToken&&syncGistId){
   setSyncDot('syncing');
   pullFromGist().then(loaded=>{
